@@ -2,6 +2,16 @@
 
 A production-grade ML inference system for live Formula 1 race strategy: lap time prediction, tire degradation estimation, and pit stop recommendations. Built on AWS serverless primitives (API Gateway, Lambda, DynamoDB, S3) to showcase scalable ML infrastructure with a memorable F1 use case.
 
+
+## Architecture 
+curl → API Gateway → Lambda (cold start ~6.4s p99, warm ~215ms p95)
+                         ↓
+                    DynamoDB (track/tire features)
+                         ↓
+                    S3 (XGBoost model.json)
+                         ↓
+                    CloudWatch / X-Ray (latency trace)
+        
 **Live API (us-east-1):**
 ```
 https://u59hxhp9l5.execute-api.us-east-1.amazonaws.com/prod/
@@ -239,11 +249,13 @@ export F1_API_BASE="https://u59hxhp9l5.execute-api.us-east-1.amazonaws.com/prod"
 python tests/load_test_race_simulation.py
 ```
 
-Target metrics:
-- p95 latency < 120 ms (warm containers)
-- throughput ~150 RPS
+Measured results (200 requests, 20 drivers × 10 laps, concurrency cap 5):
+- **200/200 success rate**
+- Mean latency: **315 ms**
+- p95 latency: **215 ms** (warm containers)
+- p99 latency: **6 449 ms** (cold start — Lambda downloading model from S3)
 
-Cold-start latency on first invocation is ~2–3 s due to S3 model download (~3 MB). Subsequent warm invocations are ~87–120 ms.
+Cold-start latency on first invocation is ~6.4 s p99 (S3 model download + XGBoost init). Subsequent warm invocations average **315 ms mean, 215 ms p95**.
 
 ## Validation vs Real F1 2024
 
@@ -252,7 +264,16 @@ export F1_API_BASE="https://u59hxhp9l5.execute-api.us-east-1.amazonaws.com/prod"
 python tests/validate_predictions.py
 ```
 
-Replays 2024 Bahrain via FastF1 and computes RMSE/MAE. Expected result with current model: ~1.7 s RMSE (Bahrain is in the training set).
+Replays 2024 Bahrain via FastF1 (1 043 clean laps, pit and outlier laps excluded) and calls the live API for each lap.
+
+Measured results on **holdout 2024 Bahrain**:
+
+| Metric | Value |
+|--------|-------|
+| RMSE | **1.198 s** |
+| MAE | **0.794 s** |
+| p95 absolute error | **1.955 s** |
+| Laps validated | 1 043 |
 
 ---
 
@@ -373,7 +394,7 @@ The following issues were encountered and resolved during the initial deployment
 
 ## Suggested Resume Bullets
 
-- Built and deployed a production AWS serverless ML inference system for Formula 1 race strategy (lap time, tire degradation, pit windows) using API Gateway, Lambda, DynamoDB, and S3; achieved 1.70 s RMSE on 2023–2024 FastF1 telemetry across 9 races.
-- Resolved a cold-start Lambda zip size crisis (453 MB → 105 MB) by pinning to manylinux2014 XGBoost wheels and removing scipy from the inference bundle, enabling deployment within Lambda's 250 MB unzipped limit.
-- Eliminated a subtle model serialization bug where pickle's `__main__` class path resolution caused every inference to fail; migrated all models to XGBoost native JSON format with a runtime-side wrapper, making inference independent of training module structure.
-- Diagnosed and fixed a training/inference version mismatch (XGBoost 3.2.0 vs 3.0.5) that produced silently wrong predictions; established version-pinning discipline across both local venv and the Lambda bundle.
+- Built and deployed a production AWS serverless ML inference system for Formula 1 race strategy (lap time, tire degradation, pit windows) using API Gateway, Lambda, DynamoDB, and S3; validated against 1 043 real 2024 Bahrain laps achieving **RMSE 1.198 s / MAE 0.794 s** on holdout data.
+- Load-tested with 20 concurrent async drivers (httpx); achieved **200/200 success rate, 315 ms mean latency, 215 ms p95** on warm Lambda containers.
+- Resolved a Lambda zip size crisis (453 MB → 105 MB) by pinning to manylinux2014 XGBoost 3.0.5 wheels and removing scipy, enabling deployment within Lambda's 250 MB unzipped limit.
+- Eliminated a model serialization bug where pickle's `__main__` class path caused every inference request to fail; migrated all models to XGBoost native JSON format with a runtime-side loader, making inference independent of training module structure.
