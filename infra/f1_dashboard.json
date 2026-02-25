@@ -1,0 +1,75 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Lap Time Prediction Error by Track",
+        "metrics": [
+          ["F1Inference", "prediction_error", "track", "monaco"],
+          [".", "prediction_error", "track", "silverstone"],
+          [".", "prediction_error", "track", "spa"]
+        ],
+        "stat": "Average",
+        "period": 60
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Inference Latency p95 by Type",
+        "metrics": [
+          ["F1Inference", "latency_ms", "prediction_type", "laptime"],
+          [".", "latency_ms", "prediction_type", "strategy"],
+          [".", "latency_ms", "prediction_type", "degradation"]
+        ],
+        "stat": "p95",
+        "period": 60
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Requests by Track",
+        "metrics": [
+          ["F1Inference", "request_count", "track", "monaco"],
+          [".", "request_count", "track", "silverstone"],
+          [".", "request_count", "track", "spa"]
+        ],
+        "stat": "Sum",
+        "period": 60,
+        "view": "timeSeries",
+        "stacked": false
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Model Version Traffic Split",
+        "metrics": [
+          ["F1Inference", "request_count", "model_version", "v1"],
+          [".", "request_count", "model_version", "v2_2024_season"],
+          [".", "request_count", "model_version", "v3"]
+        ],
+        "stat": "Sum",
+        "period": 300,
+        "view": "timeSeries"
+      }
+    }
+  ]
+}
