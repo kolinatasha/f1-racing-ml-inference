@@ -55,6 +55,9 @@ An F1-themed architecture diagram is generated via Graphviz in the notebook: see
 - `scripts/`
   - `populate_f1_features.py` – seed DynamoDB with 3 tracks, 5 tire compounds, 1 weather record
   - `deploy_model.py` – upload local `model.json` artifacts to S3
+- `dashboard/`
+  - `app.py` – Streamlit interactive dashboard (three panels: lap time, degradation, strategy + stint simulation chart)
+  - `requirements.txt` – Streamlit Cloud dependencies
 - `tests/`
   - `load_test_race_simulation.py` – 20-car async race load test (httpx)
   - `validate_predictions.py` – replay real 2024 race via FastF1 and compute RMSE/MAE vs API
@@ -239,6 +242,32 @@ python scripts/deploy_model.py
 # Seed DynamoDB with tracks, tires, and weather
 AWS_REGION=us-east-1 python scripts/populate_f1_features.py
 ```
+
+---
+
+## Interactive Dashboard
+
+**Run locally:**
+```bash
+pip install streamlit requests pandas
+streamlit run dashboard/app.py
+# Opens at http://localhost:8501
+```
+
+**Deploy to Streamlit Cloud (permanent shareable link — free):**
+1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
+2. Click **New app** → select `kolinatasha/f1-racing-ml-inference`
+3. Set **Main file path** to `dashboard/app.py`
+4. Click **Deploy** — you get a permanent URL like `https://kolinatasha-f1-racing-ml-inference.streamlit.app`
+
+The dashboard calls the live AWS API — no local model or data files needed.
+
+**Features:**
+- Sidebar inputs: track, driver, compound, tire age, lap, fuel load, temperatures, gaps
+- Three prediction panels side-by-side (lap time · tire degradation · pit strategy)
+- F1 dark theme (red accent, black background)
+- Stint simulation: plots predicted lap time degradation over 25 laps with a single button click
+- Lambda latency shown per call (demonstrates warm vs cold start in real time)
 
 ---
 

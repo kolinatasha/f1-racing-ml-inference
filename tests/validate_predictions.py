@@ -76,5 +76,8 @@ def validate_race(year: int = 2024, race: str = "Bahrain") -> Dict[str, float]:
 
 
 if __name__ == "__main__":
-    metrics = validate_race()
-    print("Validation metrics:", metrics)
+    import sys
+    year = int(sys.argv[1]) if len(sys.argv) > 1 else 2024
+    race = sys.argv[2] if len(sys.argv) > 2 else "Bahrain"
+    metrics = validate_race(year=year, race=race)
+    print(f"Validation metrics ({year} {race}):", metrics)
