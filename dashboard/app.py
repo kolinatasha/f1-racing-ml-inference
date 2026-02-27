@@ -78,25 +78,104 @@ def laptime_badge(laptime_str: str) -> str:
     return f"## ⏱ `{laptime_str}`"
 
 
+# ── Persistent about / tutorial expander (always visible) ─────────────────────
+with st.expander("📖 About this project & how to use it", expanded=not run):
+
+    st.markdown("### What this project captures")
+    st.markdown(
+        """
+Formula 1 races are won and lost in the **pit lane**. Each team's strategy engineer
+sits on the pit wall with live telemetry, predicting three things simultaneously:
+
+| Question | This dashboard |
+|---|---|
+| How fast will my car lap right now? | **Lap Time** panel |
+| How many laps are left in these tires? | **Tire Degradation** panel |
+| Should I pit this lap or stay out? | **Pit Strategy** panel |
+
+This project builds that system end-to-end — from **raw telemetry to a live API** —
+using the same data sources and decision framework real F1 teams use.
+
+**What was built:**
+- Collected **8,300 real laps** from 9 races (2023–2024) using the FastF1 library, which
+  streams official FIA timing data
+- Trained three **XGBoost models** (lap time regressor, degradation regressor, strategy scorer)
+  on features derived from that telemetry: tire compound grip levels, track surface degradation
+  factors, fuel burn estimates, positional gaps
+- Validated against **holdout 2024 Bahrain data**: RMSE **1.198 s**, MAE **0.794 s** on 1,043 laps
+- Deployed as a **serverless AWS stack** (API Gateway → Lambda → DynamoDB + S3) with
+  215 ms p95 latency on warm containers
+- Every call you make here hits that live AWS API in real time
+        """
+    )
+
+    st.divider()
+
+    st.markdown("### How to use this dashboard")
+    st.markdown(
+        """
+**Step 1 — Pick a race scenario** *(sidebar)*
+
+Choose a track, driver code (e.g. `VER`, `HAM`, `LEC`), and tire compound.
+The compound color-codes the Lap Time panel border (🔴 Soft · 🟡 Medium · ⚪ Hard · 🟢 Inter · 🔵 Wet).
+
+**Step 2 — Set the race situation** *(sidebar)*
+
+| Parameter | What it means |
+|---|---|
+| Current lap | Which lap of the race you are on |
+| Total race laps | Full race distance (e.g. 57 for Bahrain, 78 for Monaco) |
+| Tires age (laps) | How many laps the current set has done |
+| Fuel load (kg) | Starts ~100 kg, burns ~1.6 kg/lap — auto-estimated but editable |
+| Track / air temp | Higher track temp → faster degradation |
+| Gap to car ahead/behind | Used by the strategy model to evaluate undercut/overcut |
+
+**Step 3 — Click 🔮 Predict**
+
+Three API calls fire simultaneously. Each panel shows:
+- The model's prediction
+- The Lambda latency for that call (watch for **cold starts** — first call ~6 s, warm ~300 ms)
+- The model version serving the prediction
+
+**Step 4 — Try these comparisons to see the models in action**
+
+- 🔴 → ⚪ **Soft vs Hard same lap**: Hard predicts a slower lap time, less degradation, longer remaining life
+- Lap 5 → Lap 30 **same compound**: Lap time increases as tires wear, strategy shifts from "stay out" toward "pit now"
+- Gap ahead **2 s → 0.5 s**: Tighter gap triggers earlier pit window (undercut opportunity)
+- Gap behind **3 s → 20 s**: Big gap behind → model recommends staying out longer
+
+**Step 5 — Run the Stint Simulation** *(bottom of results)*
+
+Plots predicted lap time across 25 laps of tire age on a single set.
+This shows the **degradation curve** — how long before the cliff — which is the
+core input to a real strategy engineer's stop window calculation.
+        """
+    )
+
+    st.divider()
+
+    st.markdown("### Architecture")
+    st.code(
+        "Browser → Streamlit Cloud\n"
+        "              ↓  HTTP POST (3 calls)\n"
+        "         API Gateway  ←→  AWS X-Ray tracing\n"
+        "              ↓\n"
+        "         Lambda  (Python 3.11, 256 MB, 5 s timeout)\n"
+        "           ├── DynamoDB  f1-features  (track/tire lookup)\n"
+        "           └── S3  f1-ml-models  (XGBoost model.json, ~3 MB each)\n"
+        "              ↓\n"
+        "         CloudWatch  (latency alarms, error rate alarms)",
+        language="text",
+    )
+    st.caption(
+        "Models are cached in-process after first S3 load — cold start is ~6 s (S3 download), "
+        "warm calls are ~215 ms p95. The `latency_ms` in each panel is measured inside Lambda "
+        "and does not include API Gateway overhead."
+    )
+
 # ── Main content ──────────────────────────────────────────────────────────────
 if not run:
-    st.info("Set parameters in the sidebar and click **Predict** to call the live API.")
-
-    st.subheader("How it works")
-    cols = st.columns(3)
-    with cols[0]:
-        st.markdown("**Lap Time Model**")
-        st.markdown("XGBoost regressor trained on 8,300 real laps from 2023–2024 FastF1 telemetry. Features: tire age, compound grip, track degradation factor, fuel load, temperatures.")
-    with cols[1]:
-        st.markdown("**Tire Degradation Model**")
-        st.markdown("Predicts % degradation and remaining life given laps on current set, track temperature, and driver aggression index derived from telemetry.")
-    with cols[2]:
-        st.markdown("**Pit Strategy Model**")
-        st.markdown("Scores the optimal stop window based on lap position, race progress, and gap to cars ahead and behind — the core decision on a real pit wall.")
-
-    st.subheader("Live API")
-    st.code(API_BASE)
-    st.markdown("Deployed on AWS Lambda (Python 3.11, 256 MB) behind API Gateway. Models stored in S3 as XGBoost native JSON and cached in-process after first load.")
+    st.info("👈 Set parameters in the sidebar and click **🔮 Predict** to call the live AWS API.")
 
 else:
     compound_color = COMPOUND_COLOR.get(compound, "#888")
